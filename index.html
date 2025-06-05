@@ -394,21 +394,39 @@
 
             try {
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                if (!response.ok) throw new Error(`API Error: ${response.status} - ${response.statusText}. Check API key and quotas.`);
                 const result = await response.json();
 
                 if (result.candidates && result.candidates[0].content?.parts?.[0]?.text) {
-                    const categoryData = JSON.parse(result.candidates[0].content.parts[0].text);
-                    if (!categoryData.categoryName || !categoryData.startingLetter || !categoryData.targetItemCount || !categoryData.items || categoryData.items.length < categoryData.targetItemCount || !categoryData.generalHints) {
-                        throw new Error("Invalid data structure from API.");
+                    let categoryData;
+                    try {
+                        categoryData = JSON.parse(result.candidates[0].content.parts[0].text);
+                    } catch (e) {
+                        console.error("Failed to parse API JSON response for category:", result.candidates[0].content.parts[0].text);
+                        throw new Error("API returned non-JSON data for category.");
                     }
+                    
+                    // More robust validation
+                    if (typeof categoryData.categoryName !== 'string' || categoryData.categoryName.trim() === '') throw new Error("API response missing or empty 'categoryName'.");
+                    if (typeof categoryData.startingLetter !== 'string' || !/^[A-Z]$/.test(categoryData.startingLetter)) throw new Error("API response missing or invalid 'startingLetter'.");
+                    if (typeof categoryData.targetItemCount !== 'number' || categoryData.targetItemCount < 5 || categoryData.targetItemCount > 10) throw new Error("API response missing or invalid 'targetItemCount'.");
+                    if (!Array.isArray(categoryData.items) || categoryData.items.some(item => typeof item !== 'string') || categoryData.items.length < categoryData.targetItemCount) throw new Error("API response missing, invalid, or insufficient 'items'.");
+                    if (!Array.isArray(categoryData.generalHints) || categoryData.generalHints.some(hint => typeof hint !== 'string') || categoryData.generalHints.length < 1) throw new Error("API response missing, invalid, or insufficient 'generalHints'.");
+                    if (categoryData.itemHints !== undefined && (typeof categoryData.itemHints !== 'object' || Array.isArray(categoryData.itemHints))) throw new Error("API response 'itemHints' is not a valid object.");
+                    if (categoryData.itemHints) {
+                        for (const key in categoryData.itemHints) {
+                            if (typeof categoryData.itemHints[key] !== 'string') throw new Error(`Hint for item '${key}' is not a string.`);
+                        }
+                    }
+
+
                     categoryCountdownState.currentCategoryData = {
                         ...categoryData,
-                        items: categoryData.items.map(item => item.toUpperCase())
+                        items: categoryData.items.map(item => String(item).toUpperCase())
                     };
                     categoryCountdownState.guessedItems = [];
                     categoryCountdownState.lastDisplayedHint = { text: null, item: null };
-                    categoryCountdownState.availableGeneralHintsIndices = categoryData.generalHints.map((_,idx) => idx); 
+                    categoryCountdownState.availableGeneralHintsIndices = (categoryData.generalHints || []).map((_,idx) => idx); 
                     shuffleArray(categoryCountdownState.availableGeneralHintsIndices); 
                     categoryCountdownState.currentGeneralHintPointer = 0;
 
@@ -420,11 +438,20 @@
                     document.getElementById('categoryHintDisplay').textContent = '';
                     showFeedback('categoryFeedback', 'New category challenge loaded!', null);
                 } else {
-                    throw new Error("Unexpected API response for Category.");
+                     let errorDetail = "Unknown reason.";
+                    if (result.promptFeedback && result.promptFeedback.blockReason) {
+                        errorDetail = `Blocked by API: ${result.promptFeedback.blockReason}`;
+                         if(result.promptFeedback.safetyRatings) {
+                            errorDetail += ` Safety Ratings: ${JSON.stringify(result.promptFeedback.safetyRatings)}`;
+                         }
+                    } else if (!result.candidates || result.candidates.length === 0) {
+                        errorDetail = "No candidates returned by API.";
+                    }
+                    throw new Error(`Unexpected API response structure for Category. ${errorDetail}`);
                 }
             } catch (error) {
                 console.error("Error fetching Category:", error);
-                showFeedback('categoryFeedback', `Error: ${error.message}. Try again or check API key.`, 'incorrect');
+                showFeedback('categoryFeedback', `Error: ${error.message}. Try again or check API key / console.`, 'incorrect');
                 categoryCountdownState.currentCategoryData = null;
                 document.getElementById('categoryChallenge').textContent = "Click 'New Category' to start.";
             } finally {
@@ -595,4 +622,3 @@
     </script>
 </body>
 </html>
-```
