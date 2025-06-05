@@ -590,27 +590,3 @@
     </script>
 </body>
 </html>
-```
-
-**Specific changes made:**
-
-In the `startCategoryCountdown` function:
-1.  The `prompt` string has been modified to remove the request for `itemHints`:
-    ```javascript
-    const prompt = "Generate a Category Countdown game. Provide: 'categoryName' (e.g., 'Animals', 'Countries', 'Fruits', 'Musical Instruments'), 'startingLetter' (a single uppercase letter), 'targetItemCount' (a number between 5 and 10), an array 'items' of AT LEAST targetItemCount + 5 valid unique English common nouns (all uppercase) matching the category and letter. Finally, provide an array 'generalHints' of 3-5 distinct, creative, and helpful general hints for the category. Output as JSON.";
-    ```
-2.  In the `payload.generationConfig.responseSchema.properties`, the entry for `"itemHints"` has been removed.
-3.  In `payload.generationConfig.responseSchema.required`, `"itemHints"` was already removed in the previous version, which is correct.
-4.  Added more robust validation for the API response fields to catch potential issues early.
-5.  Ensured `categoryData.itemHints = {};` is set if `itemHints` is not provided by the API, so the rest of the code that might check for `categoryData.itemHints` doesn't break.
-
-The `getCategoryHint` function will now rely solely on the `generalHints` array.
-
-**Please replace the entire content of your `index.html` on GitHub with this new version.**
-
-After you've updated the file on GitHub:
-1.  **Wait** a few minutes for GitHub Pages to rebuild and deploy.
-2.  Do a **hard refresh** of your browser (`Ctrl+Shift+R` or `Cmd+Shift+R`) on the game page: `https://urvashigoel.github.io/experiments/`
-3.  Try clicking "New Category" again.
-
-Hopefully, this simplification of the expected API response makes the Category Countdown game more stable. Let me know if this resolves the 400 err
