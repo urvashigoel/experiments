@@ -383,10 +383,10 @@
                             "startingLetter": { type: "STRING", pattern: "^[A-Z]$" },
                             "targetItemCount": { type: "INTEGER", minimum: 5, maximum: 10 },
                             "items": { type: "ARRAY", items: { type: "STRING" }, minItems: 10 }, 
-                            "itemHints": { type: "OBJECT", additionalProperties: { type: "STRING" } },
+                            "itemHints": { type: "OBJECT", additionalProperties: { type: "STRING" } }, // itemHints is NOT required
                             "generalHints": { type: "ARRAY", items: { type: "STRING" }, minItems: 3, maxItems: 5 }
                         },
-                        required: ["categoryName", "startingLetter", "targetItemCount", "items", "generalHints"]
+                        required: ["categoryName", "startingLetter", "targetItemCount", "items", "generalHints"] // itemHints removed from required
                     }
                 }
             };
@@ -406,17 +406,25 @@
                         throw new Error("API returned non-JSON data for category.");
                     }
                     
-                    // More robust validation
                     if (typeof categoryData.categoryName !== 'string' || categoryData.categoryName.trim() === '') throw new Error("API response missing or empty 'categoryName'.");
                     if (typeof categoryData.startingLetter !== 'string' || !/^[A-Z]$/.test(categoryData.startingLetter)) throw new Error("API response missing or invalid 'startingLetter'.");
                     if (typeof categoryData.targetItemCount !== 'number' || categoryData.targetItemCount < 5 || categoryData.targetItemCount > 10) throw new Error("API response missing or invalid 'targetItemCount'.");
                     if (!Array.isArray(categoryData.items) || categoryData.items.some(item => typeof item !== 'string') || categoryData.items.length < categoryData.targetItemCount) throw new Error("API response missing, invalid, or insufficient 'items'.");
                     if (!Array.isArray(categoryData.generalHints) || categoryData.generalHints.some(hint => typeof hint !== 'string') || categoryData.generalHints.length < 1) throw new Error("API response missing, invalid, or insufficient 'generalHints'.");
-                    if (categoryData.itemHints !== undefined && (typeof categoryData.itemHints !== 'object' || Array.isArray(categoryData.itemHints))) throw new Error("API response 'itemHints' is not a valid object.");
-                    if (categoryData.itemHints) {
+                    
+                    // Handle optional itemHints
+                    if (categoryData.itemHints && (typeof categoryData.itemHints !== 'object' || Array.isArray(categoryData.itemHints))) {
+                         console.warn("API response 'itemHints' is not a valid object, ignoring.");
+                         categoryData.itemHints = {}; // Default to empty object if invalid
+                    } else if (categoryData.itemHints) {
                         for (const key in categoryData.itemHints) {
-                            if (typeof categoryData.itemHints[key] !== 'string') throw new Error(`Hint for item '${key}' is not a string.`);
+                            if (typeof categoryData.itemHints[key] !== 'string') {
+                                console.warn(`Hint for item '${key}' is not a string, ignoring this hint.`);
+                                delete categoryData.itemHints[key];
+                            }
                         }
+                    } else {
+                        categoryData.itemHints = {}; // Ensure it's an object if not provided
                     }
 
 
